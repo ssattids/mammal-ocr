@@ -1,0 +1,16 @@
+version: '3.1'
+
+services:
+  mammal-ocr:
+    image: ocr:latest
+    container_name: mammal-ocr
+    # networks:
+    #   - node-net
+    ports:
+      - 8080:8080
+    volumes:
+      - ./src:/home/src
+    restart: always
+    user: "root:root"
+
+    tty: true
