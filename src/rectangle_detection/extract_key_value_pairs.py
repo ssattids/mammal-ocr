@@ -4,13 +4,10 @@ import io
 import fitz
 from PIL import Image, ImageDraw
 import json
-import sklearn.neighbors as skneighbors
 import numpy as np
 import pandas as pd
 import json
-import random
-import matplotlib
-from common import draw_bounding_box, aws_textract_detect, convert_pil_to_bytes, get_all_page_data
+from common import draw_bounding_box, aws_textract_detect, convert_pil_to_bytes, get_all_page_data, ocr_magic
 
 def rectangle_intersect(bbox1, bbox2):
     """
