@@ -84,7 +84,7 @@ import pandas as pd
 import json
 import random
 # %%
-input_pdf = "/Users/salarsatti/projects/mammal-ocr/src/data/Travelers-RMD-MO-130-133-Forms_removed.pdf"
+input_pdf = "/Users/salarsatti/projects/mammal-ocr/src/data/Acord_130_2_not_filled.pdf"
 # input_pdf = "/Users/salarsatti/projects/mammal-ocr/src/data/ACORD_130.pdf"
 dpi = 300
 zoom = 1 # to increase the resolution

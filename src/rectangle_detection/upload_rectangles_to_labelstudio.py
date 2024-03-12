@@ -5,14 +5,13 @@ import io
 import fitz
 from PIL import Image, ImageDraw
 import json
-import sklearn.neighbors as skneighbors
 import numpy as np
 import pandas as pd
 import json
 import random
 from common import get_all_page_data
 # %%
-input_pdf = "/Users/salarsatti/projects/mammal-ocr/src/data/Travelers-RMD-MO-130-133-Forms_removed.pdf"
+input_pdf = "/Users/salarsatti/projects/mammal-ocr/src/data/Acord_130_2_not_filled.pdf"
 # input_pdf = "/Users/salarsatti/projects/mammal-ocr/src/data/ACORD_130.pdf"
 # %%
 # open pdf and loop over images
@@ -28,7 +27,7 @@ for page_index in range(len(all_page_data)):
 # %%    
 # %%
 # for page_index in range(len(images)):
-page_index = 0
+page_index = 2
 image = pil_images[page_index].copy()
 width, height = image.size 
 

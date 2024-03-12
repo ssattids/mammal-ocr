@@ -1,3 +1,4 @@
+#%%
 import boto3
 import io
 from PIL import Image, ImageDraw
@@ -8,10 +9,10 @@ import cv2
 import numpy as np
 import uuid
 import fitz
-
+import copy
 # %%
 
-def get_all_page_data(input_pdf, dpi=600, image_format='PNG'):
+def get_all_page_data(input_pdf, dpi=300, image_format='PNG'):
     """
         Get a list of page objects for a .pdf file
         Input:
@@ -21,7 +22,13 @@ def get_all_page_data(input_pdf, dpi=600, image_format='PNG'):
         Output:
             all_page_data: list of page objects
     """
-    doc = fitz.open(input_pdf)
+    if type(input_pdf) == str:
+        doc = fitz.open(input_pdf)
+    elif type(input_pdf) == bytes:
+        doc = fitz.open(stream=input_pdf, filetype="pdf")
+    else:
+        raise Exception("input_pdf must be a path to a .pdf file or a bytes object")
+
     images_bytes = []
     images = []
     all_page_data = []
@@ -168,6 +175,17 @@ def convert_pil_to_bytes(image_pil:Image, format:str="PNG"):
     image_bytes = byte_io.getvalue()
     return image_bytes
 
+def convert_bytes_to_pil(image_bytes:bytes):
+    """
+        Function to convert bytes to a PIL Image object
+        Input:
+            image_bytes: bytes object of the image
+        Output:
+            image_pil: PIL Image object
+    """
+    image_pil = Image.open(io.BytesIO(image_bytes))
+    return image_pil
+
 def draw_bounding_box(blocks, image:Image, block_type=None, block_type_line_properties={}, block_type_word_properties={}):
     """
         blocks: blocks returned from aws textract
@@ -234,7 +252,6 @@ def draw_bounding_box(blocks, image:Image, block_type=None, block_type_line_prop
                     )
 
     # Display the image
-    display(image)
     return image
 
 def crop_image(img, coordinates):
@@ -251,4 +268,89 @@ def crop_image(img, coordinates):
     # Crop the image based on coordinates
     cropped_img = img.crop(coordinates)
     
-    display(cropped_img)
+    return cropped_img
+
+
+def ocr_magic(image_bytes, block_type="LINE"):
+    """
+        Function to perform OCR on an image and return the blocks of a specific type
+
+        Currently we OCR the image twice to get all the blocks 
+
+        Input:
+            image_bytes: the png bytes of an image
+        Output:
+            blocks: the blocks of the specified type
+    """
+    r = aws_textract_detect(image_bytes)
+    # r = paddle_ocr_detect(image_bytes)
+    blocks = r['Blocks']
+    # white out the already identified blocks
+    image = Image.open(io.BytesIO(image_bytes))
+    bb_image = draw_bounding_box(
+        blocks,
+        image,
+        block_type="LINE",
+        block_type_line_properties={"outline":None, "fill":"white"}
+    )
+    # send the image again to be OCRed
+    bb_image_bytes = convert_pil_to_bytes(bb_image, format="PNG")
+    r_bb = aws_textract_detect(bb_image_bytes)
+    blocks_bb = r_bb["Blocks"]
+    # combine to line blocks
+    if block_type != None:
+        line_blocks = [b for b in blocks if b["BlockType"] == block_type]
+        line_bb_blocks = [b for b in blocks_bb if b["BlockType"] == block_type]
+    else:
+        all_line_blocks = blocks + blocks_bb
+    
+    all_line_blocks = line_blocks + line_bb_blocks
+    # white out all the blocks and show what we have
+    bb_image = draw_bounding_box(
+        all_line_blocks,
+        image,
+        block_type="LINE",
+        block_type_line_properties={"outline":None, "fill":"white"}
+    )
+    return all_line_blocks
+
+def update_block_large_canvas(block, page_index, num_pages):
+    """
+        Helper function called by get_relevant blocks
+        it will update an identified text block position in such a way that the all pages in a document are treated as a large canvas
+    """
+    a_block_copy = copy.deepcopy(block)
+    a_block_copy["Geometry"]["Polygon"][0]["Y"] = (a_block_copy["Geometry"]["Polygon"][0]["Y"] + page_index) / num_pages
+    a_block_copy["Geometry"]["Polygon"][1]["Y"] = (a_block_copy["Geometry"]["Polygon"][1]["Y"] + page_index) / num_pages
+    a_block_copy["Geometry"]["Polygon"][2]["Y"] = (a_block_copy["Geometry"]["Polygon"][2]["Y"] + page_index) / num_pages
+    a_block_copy["Geometry"]["Polygon"][3]["Y"] = (a_block_copy["Geometry"]["Polygon"][3]["Y"] + page_index) / num_pages
+
+    return a_block_copy
+
+def make_large_canvas(pages):
+    """
+        Function that takes in an array of page objects, and returns an array of blocks that contain all the pages blocks as if it were on a large canvas
+    """
+    all_updated_blocks = []
+    num_pages = len(pages)
+    for page in pages:
+        page_index = page["page_index"]
+        page_blocks = page["blocks"]
+        updated_blocks = []
+        for block in page_blocks:
+            updated_blocks.append(update_block_large_canvas(block, page_index, num_pages))
+        all_updated_blocks += updated_blocks
+    return all_updated_blocks
+
+def make_large_canvas_page(pages):
+    all_updated_blocks = []
+    for page in pages:
+        page_index = page["page_index"]
+        page_blocks = page["blocks"]
+        for block in page_blocks:
+            updated_block = block.copy()
+            updated_block["page_index"] = page_index
+            all_updated_blocks.append(updated_block)
+    return all_updated_blocks
+
+# %%
